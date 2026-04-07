@@ -9,6 +9,8 @@ Kubernetes-oriented workflow pipeline made of specialized microservices. The orc
 - `prompt-to-code`: consumes `prompt-to-code.in`, converts prompt artifacts into generated code artifacts through the shared LLM client.
 - `code-review`: consumes `code-review.in`, converts generated code artifacts into review result artifacts and completes the workflow.
 - `analysis`: reads durable workflow data outside the execution path.
+- `analysis-frontend`: local frontend shell for analysis service data. Not included in Docker/Kubernetes yet.
+- `orchestrator-dashboard`: local frontend shell for creating workflow runs through the orchestrator. Not included in Docker/Kubernetes yet.
 
 ## Shared Infrastructure
 
@@ -135,6 +137,27 @@ Ollama is available at `http://localhost:11434`. Pull the configured local model
 
 ```bash
 docker compose exec ollama ollama pull codellama
+```
+
+Run the frontend apps locally:
+
+```bash
+cd apps/orchestrator-dashboard
+npm install
+npm run dev
+```
+
+```bash
+cd apps/analysis-frontend
+npm install
+npm run dev
+```
+
+The dashboard apps use `.env.example` files for API URLs:
+
+```text
+VITE_ORCHESTRATOR_API_URL=http://localhost:8080
+VITE_ANALYSIS_API_URL=http://localhost:8081
 ```
 
 ## Kubernetes
