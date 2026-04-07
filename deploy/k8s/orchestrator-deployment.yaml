@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: workflow-pipeline
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: orchestrator
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+    spec:
+      containers:
+        - name: orchestrator
+          image: workflow-pipeline/orchestrator:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SERVICE_NAME
+              value: orchestrator
+          envFrom:
+            - configMapRef:
+                name: workflow-config
+            - secretRef:
+                name: workflow-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+  namespace: workflow-pipeline
+spec:
+  selector:
+    app: orchestrator
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

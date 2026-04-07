@@ -1,0 +1,23 @@
+[project]
+name = "workflow-pipeline"
+version = "0.1.0"
+description = "Kubernetes-oriented workflow pipeline of specialized microservices."
+requires-python = ">=3.12"
+dependencies = [
+  "aio-pika>=9.4.3",
+  "asyncpg>=0.29.0",
+  "fastapi>=0.111.0",
+  "httpx>=0.27.0",
+  "minio>=7.2.7",
+  "pydantic>=2.8.0",
+  "uvicorn[standard]>=0.30.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["packages/workflow_contracts/src", "packages/workflow_runtime/src"]
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "packages/workflow_contracts/src",
+  "packages/workflow_runtime/src",
+]

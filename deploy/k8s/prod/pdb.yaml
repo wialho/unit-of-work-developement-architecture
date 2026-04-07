@@ -1,0 +1,43 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: orchestrator
+  namespace: workflow-pipeline
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: orchestrator
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ticket-to-prompt
+  namespace: workflow-pipeline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: ticket-to-prompt
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: prompt-to-code
+  namespace: workflow-pipeline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: prompt-to-code
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: code-review
+  namespace: workflow-pipeline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: code-review

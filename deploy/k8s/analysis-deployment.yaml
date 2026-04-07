@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analysis
+  namespace: workflow-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analysis
+  template:
+    metadata:
+      labels:
+        app: analysis
+    spec:
+      containers:
+        - name: analysis
+          image: workflow-pipeline/analysis:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SERVICE_NAME
+              value: analysis
+          envFrom:
+            - configMapRef:
+                name: workflow-config
+            - secretRef:
+                name: workflow-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analysis
+  namespace: workflow-pipeline
+spec:
+  selector:
+    app: analysis
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

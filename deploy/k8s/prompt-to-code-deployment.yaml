@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prompt-to-code
+  namespace: workflow-pipeline
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: prompt-to-code
+  template:
+    metadata:
+      labels:
+        app: prompt-to-code
+    spec:
+      containers:
+        - name: prompt-to-code
+          image: workflow-pipeline/prompt-to-code:0.1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SERVICE_NAME
+              value: prompt-to-code
+            - name: PROMPT_TO_CODE_LLM_MODEL
+              value: codellama
+          envFrom:
+            - configMapRef:
+                name: workflow-config
+            - secretRef:
+                name: workflow-secrets

@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: code-review
+  namespace: workflow-pipeline
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: code-review
+  template:
+    metadata:
+      labels:
+        app: code-review
+    spec:
+      containers:
+        - name: code-review
+          image: workflow-pipeline/code-review:0.1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SERVICE_NAME
+              value: code-review
+          envFrom:
+            - configMapRef:
+                name: workflow-config
+            - secretRef:
+                name: workflow-secrets

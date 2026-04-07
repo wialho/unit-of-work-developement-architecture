@@ -1,0 +1,171 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: workflow
+      POSTGRES_USER: workflow
+      POSTGRES_PASSWORD: workflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workflow -d workflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2024-07-16T23-46-41Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: workflow
+      MINIO_ROOT_PASSWORD: workflow-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-07-15T17-46-06Z
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mc alias set local http://minio:9000 workflow workflow-secret; do sleep 2; done
+        mc mb --ignore-existing local/workflow-artifacts
+
+  ollama:
+    image: ollama/ollama:0.3.4
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: apps/orchestrator/Dockerfile
+    environment:
+      SERVICE_NAME: orchestrator
+      DATABASE_URL: postgresql://workflow:workflow@postgres:5432/workflow
+      QUEUE_URL: amqp://guest:guest@rabbitmq:5672/
+      OBJECT_STORAGE_PROVIDER: s3_compatible
+      OBJECT_STORAGE_ENDPOINT: minio:9000
+      OBJECT_STORAGE_BUCKET: workflow-artifacts
+      OBJECT_STORAGE_ACCESS_KEY: workflow
+      OBJECT_STORAGE_SECRET_KEY: workflow-secret
+      OBJECT_STORAGE_SECURE: "false"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  ticket-to-prompt:
+    build:
+      context: .
+      dockerfile: apps/ticket-to-prompt/Dockerfile
+    environment:
+      SERVICE_NAME: ticket-to-prompt
+      DATABASE_URL: postgresql://workflow:workflow@postgres:5432/workflow
+      QUEUE_URL: amqp://guest:guest@rabbitmq:5672/
+      OBJECT_STORAGE_PROVIDER: s3_compatible
+      OBJECT_STORAGE_ENDPOINT: minio:9000
+      OBJECT_STORAGE_BUCKET: workflow-artifacts
+      OBJECT_STORAGE_ACCESS_KEY: workflow
+      OBJECT_STORAGE_SECRET_KEY: workflow-secret
+      OBJECT_STORAGE_SECURE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  prompt-to-code:
+    build:
+      context: .
+      dockerfile: apps/prompt-to-code/Dockerfile
+    environment:
+      SERVICE_NAME: prompt-to-code
+      DATABASE_URL: postgresql://workflow:workflow@postgres:5432/workflow
+      QUEUE_URL: amqp://guest:guest@rabbitmq:5672/
+      LLM_PROVIDER: ollama
+      LLM_BASE_URL: http://ollama:11434
+      PROMPT_TO_CODE_LLM_MODEL: codellama
+      OBJECT_STORAGE_PROVIDER: s3_compatible
+      OBJECT_STORAGE_ENDPOINT: minio:9000
+      OBJECT_STORAGE_BUCKET: workflow-artifacts
+      OBJECT_STORAGE_ACCESS_KEY: workflow
+      OBJECT_STORAGE_SECRET_KEY: workflow-secret
+      OBJECT_STORAGE_SECURE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+  code-review:
+    build:
+      context: .
+      dockerfile: apps/code-review/Dockerfile
+    environment:
+      SERVICE_NAME: code-review
+      DATABASE_URL: postgresql://workflow:workflow@postgres:5432/workflow
+      QUEUE_URL: amqp://guest:guest@rabbitmq:5672/
+      OBJECT_STORAGE_PROVIDER: s3_compatible
+      OBJECT_STORAGE_ENDPOINT: minio:9000
+      OBJECT_STORAGE_BUCKET: workflow-artifacts
+      OBJECT_STORAGE_ACCESS_KEY: workflow
+      OBJECT_STORAGE_SECRET_KEY: workflow-secret
+      OBJECT_STORAGE_SECURE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  analysis:
+    build:
+      context: .
+      dockerfile: apps/analysis/Dockerfile
+    environment:
+      SERVICE_NAME: analysis
+      DATABASE_URL: postgresql://workflow:workflow@postgres:5432/workflow
+      QUEUE_URL: amqp://guest:guest@rabbitmq:5672/
+      OBJECT_STORAGE_PROVIDER: s3_compatible
+      OBJECT_STORAGE_ENDPOINT: minio:9000
+      OBJECT_STORAGE_BUCKET: workflow-artifacts
+      OBJECT_STORAGE_ACCESS_KEY: workflow
+      OBJECT_STORAGE_SECRET_KEY: workflow-secret
+      OBJECT_STORAGE_SECURE: "false"
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  minio-data:
+  ollama-data:
