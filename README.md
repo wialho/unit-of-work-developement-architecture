@@ -22,6 +22,7 @@ Kubernetes-oriented workflow pipeline made of specialized microservices. The orc
 The runtime exposes provider-neutral shared code for prompt-based LLM steps, LLM access, and blob storage:
 
 - `workflow_runtime.prompt_step.PromptLLMStepHandler`
+- `workflow_runtime.self_improving_prompt_step.SelfImprovingLLMStepHandler`
 - `workflow_runtime.llm.LLMClient`
 - `workflow_runtime.object_storage.BlobStorage`
 - `workflow_runtime.object_storage.create_blob_storage`
@@ -34,6 +35,26 @@ LLM_PROVIDER=ollama
 LLM_BASE_URL=http://ollama:11434
 LLM_MODEL=codellama
 ```
+
+Reusable starting prompts live in `prompts/` and are loaded by prompt id plus version:
+
+```text
+prompts/
+  prompt-to-code/
+    task-system-v1.md
+    prompt-evaluation-v1.md
+    prompt-refinement-v1.md
+    output-check-v1.md
+    output-repair-v1.md
+  shared/
+    json-only-v1.md
+```
+
+Services can load them with `workflow_runtime.prompt_registry.load_prompt_template`.
+Set `PROMPT_REGISTRY_ROOT` to override the default registry location. If omitted, the
+runtime searches upward from the current working directory for `prompts/`.
+For `prompt-to-code`, set `PROMPT_TO_CODE_PROMPT_VERSION=v2` to switch to files such as
+`prompts/prompt-to-code/task-system-v2.md`.
 
 Each service can override those defaults with service-prefixed variables. For `prompt-to-code`, use:
 
@@ -307,6 +328,10 @@ class SecurityScanHandler(PromptLLMStepHandler):
             llm_client,
         )
 ```
+
+If it needs a service-local prompt improvement loop, use `SelfImprovingLLMStepHandler`
+instead. It evaluates and refines the service prompt, runs the main LLM task, self-checks
+the output, optionally repairs once, and stores the loop details in artifact metadata.
 
 If it is not prompt-based, implement the normal `StepHandler` pattern and return a `StepResult`.
 
