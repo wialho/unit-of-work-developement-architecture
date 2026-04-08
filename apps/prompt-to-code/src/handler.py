@@ -4,6 +4,8 @@ import os
 
 from workflow_contracts import ArtifactType, StepType
 from workflow_runtime import (
+    ContextPolicy,
+    DeterministicContextResolver,
     LLMClient,
     SelfImprovingLLMStepHandler,
     SelfImprovingPromptStepConfig,
@@ -27,6 +29,17 @@ class PromptToCodeHandler(SelfImprovingLLMStepHandler):
             name: load_prompt_template(prompt_id, PROMPT_VERSION)
             for name, prompt_id in PROMPT_IDS.items()
         }
+        context_policy = ContextPolicy.from_env(
+            "prompt-to-code",
+            name="prompt-to-code-default",
+            always_include_paths=("README.md",),
+            path_globs=(
+                "packages/workflow_contracts/src/workflow_contracts/*.py",
+                "packages/workflow_runtime/src/workflow_runtime/*.py",
+            ),
+            max_files=8,
+            max_chars=18_000,
+        )
         super().__init__(
             SelfImprovingPromptStepConfig(
                 step_type=StepType.PROMPT_TO_CODE,
@@ -47,6 +60,9 @@ class PromptToCodeHandler(SelfImprovingLLMStepHandler):
                 max_output_repair_iterations=1,
                 rubric_version="prompt-to-code-v1",
                 prompt_refs={name: prompt.ref for name, prompt in prompts.items()},
+                context_policy=context_policy,
+                context_resolver=DeterministicContextResolver(),
+                context_extra_paths=(),
             ),
             llm_client,
         )

@@ -56,6 +56,22 @@ runtime searches upward from the current working directory for `prompts/`.
 For `prompt-to-code`, set `PROMPT_TO_CODE_PROMPT_VERSION=v2` to switch to files such as
 `prompts/prompt-to-code/task-system-v2.md`.
 
+Deterministic autocontext is available through `workflow_runtime.context`. The current
+integration is `prompt-to-code`, which resolves a bounded `ContextBundle` per input
+artifact and prepends it to the working prompt. The selection policy is configurable
+through service-prefixed env vars such as:
+
+```text
+PROMPT_TO_CODE_CONTEXT_ENABLED=true
+PROMPT_TO_CODE_CONTEXT_MAX_FILES=8
+PROMPT_TO_CODE_CONTEXT_MAX_CHARS=18000
+PROMPT_TO_CODE_CONTEXT_ALWAYS_INCLUDE=README.md
+PROMPT_TO_CODE_CONTEXT_PATH_GLOBS=packages/workflow_contracts/src/workflow_contracts/*.py,packages/workflow_runtime/src/workflow_runtime/*.py
+```
+
+The runtime stores both the resolved `ContextBundle` and the policy metadata in the
+artifact metadata so later stages can audit what context was attached.
+
 Each service can override those defaults with service-prefixed variables. For `prompt-to-code`, use:
 
 ```text

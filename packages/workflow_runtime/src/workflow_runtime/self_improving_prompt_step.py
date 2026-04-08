@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from workflow_contracts import Artifact, ArtifactType, StepResult, StepType, WorkflowMessage
+from workflow_runtime.context import ContextBundle, ContextPolicy, ContextResolver
 from workflow_runtime.llm import LLMClient, LLMRequest, LLMResponse
 
 
@@ -29,6 +30,9 @@ class SelfImprovingPromptStepConfig:
     max_tokens: int | None = None
     rubric_version: str = "v1"
     prompt_refs: dict[str, str] | None = None
+    context_policy: ContextPolicy | None = None
+    context_resolver: ContextResolver | None = None
+    context_extra_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -56,7 +60,9 @@ class SelfImprovingLLMStepHandler:
         self.step_type = config.step_type
 
     async def process(self, message: WorkflowMessage, input_artifact: Artifact) -> StepResult:
-        prompt = (input_artifact.content or {}).get(self._config.prompt_content_key, "")
+        base_prompt = (input_artifact.content or {}).get(self._config.prompt_content_key, "")
+        context_bundle = self._build_context_bundle(input_artifact)
+        prompt = self._build_effective_prompt(base_prompt, context_bundle)
         prompt_versions: list[dict[str, Any]] = [
             {
                 "iteration": 0,
@@ -141,6 +147,7 @@ class SelfImprovingLLMStepHandler:
                 "self_improvement": {
                     "rubric_version": self._config.rubric_version,
                     "prompt_refs": self._config.prompt_refs or {},
+                    "context": context_bundle.to_metadata() if context_bundle else None,
                     "prompt_pass_score": self._config.prompt_pass_score,
                     "prompt_versions": prompt_versions,
                     "prompt_evaluations": prompt_evaluations,
@@ -152,6 +159,30 @@ class SelfImprovingLLMStepHandler:
                 **task_response.metadata,
             },
             next_step_type=self._config.next_step_type,
+        )
+
+    def _build_context_bundle(self, input_artifact: Artifact) -> ContextBundle | None:
+        if self._config.context_policy is None or self._config.context_resolver is None:
+            return None
+        return self._config.context_resolver.resolve(
+            self._config.context_policy,
+            input_artifact=input_artifact,
+            prompt_refs=self._config.prompt_refs,
+            extra_paths=self._config.context_extra_paths,
+        )
+
+    def _build_effective_prompt(
+        self,
+        base_prompt: str,
+        context_bundle: ContextBundle | None,
+    ) -> str:
+        if context_bundle is None or not context_bundle.sources:
+            return base_prompt
+        return (
+            f"{base_prompt}\n\n"
+            "Relevant context:\n"
+            "Use this context when it helps satisfy the task. Prefer explicit repo context over assumptions.\n\n"
+            f"{context_bundle.render_for_prompt()}"
         )
 
     async def _evaluate_prompt(self, prompt: str) -> PromptEvaluation:

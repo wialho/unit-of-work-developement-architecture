@@ -5,6 +5,13 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from workflow_runtime.config import Settings
+    from workflow_runtime.context import (
+        ContextBundle,
+        ContextPolicy,
+        ContextResolver,
+        ContextSource,
+        DeterministicContextResolver,
+    )
     from workflow_runtime.db import Database
     from workflow_runtime.llm import LLMClient, LLMRequest, LLMResponse, create_llm_client
     from workflow_runtime.object_storage import (
@@ -25,7 +32,12 @@ if TYPE_CHECKING:
 
 _EXPORTS = {
     "BlobStorage": "workflow_runtime.object_storage",
+    "ContextBundle": "workflow_runtime.context",
+    "ContextPolicy": "workflow_runtime.context",
+    "ContextResolver": "workflow_runtime.context",
+    "ContextSource": "workflow_runtime.context",
     "Database": "workflow_runtime.db",
+    "DeterministicContextResolver": "workflow_runtime.context",
     "LLMClient": "workflow_runtime.llm",
     "LLMRequest": "workflow_runtime.llm",
     "LLMResponse": "workflow_runtime.llm",

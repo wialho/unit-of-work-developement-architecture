@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from workflow_contracts import Artifact, ArtifactType, StepType, WorkflowMessage
+from workflow_runtime.context import ContextPolicy, ContextResolver, ContextBundle, ContextSource
 from workflow_runtime import LLMRequest, LLMResponse
 from workflow_runtime.self_improving_prompt_step import (
     SelfImprovingLLMStepHandler,
@@ -26,6 +27,30 @@ class FakeLLMClient:
 
     async def close(self) -> None:
         return None
+
+
+class StaticContextResolver(ContextResolver):
+    def resolve(
+        self,
+        policy: ContextPolicy,
+        *,
+        input_artifact: Artifact,
+        prompt_refs: dict[str, str] | None = None,
+        extra_paths: tuple[str, ...] = (),
+    ) -> ContextBundle:
+        return ContextBundle(
+            policy=policy,
+            sources=(
+                ContextSource(
+                    source_type="file",
+                    path="README.md",
+                    reason="always_include",
+                    content="Architecture context",
+                    char_count=len("Architecture context"),
+                ),
+            ),
+            char_count=len("Architecture context"),
+        )
 
 
 def test_self_improving_handler_refines_and_repairs_output() -> None:
@@ -54,6 +79,8 @@ def test_self_improving_handler_refines_and_repairs_output() -> None:
             max_prompt_refinement_iterations=2,
             max_output_repair_iterations=1,
             prompt_refs={"task_system": "prompt-to-code/task-system-v1"},
+            context_policy=ContextPolicy(name="prompt-to-code-default"),
+            context_resolver=StaticContextResolver(),
         ),
         client,
     )
@@ -93,3 +120,8 @@ def test_self_improving_handler_refines_and_repairs_output() -> None:
     assert result.output_metadata["self_improvement"]["prompt_refs"] == {
         "task_system": "prompt-to-code/task-system-v1"
     }
+    assert result.output_metadata["self_improvement"]["context"]["policy"]["name"] == (
+        "prompt-to-code-default"
+    )
+    assert "Relevant context:" in client.requests[0].user_prompt
+    assert "Architecture context" in client.requests[0].user_prompt
