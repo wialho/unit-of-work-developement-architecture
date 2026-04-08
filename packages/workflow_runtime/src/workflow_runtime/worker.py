@@ -2,18 +2,25 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from workflow_contracts import Artifact, StepResult, StepType, WorkflowMessage
-from workflow_runtime.db import Database
 from workflow_runtime.ids import new_id
-from workflow_runtime.queue import QueueClient
+
+if TYPE_CHECKING:
+    from workflow_runtime.db import Database
+    from workflow_runtime.queue import QueueClient
 
 
 QUEUE_BY_STEP: dict[StepType, str] = {
     StepType.TICKET_TO_PROMPT: "ticket-to-prompt.in",
     StepType.PROMPT_TO_CODE: "prompt-to-code.in",
+    StepType.TEST_RUNNER: "test-runner.in",
+    StepType.REQUIREMENTS_REVIEW: "requirements-review.in",
+    StepType.POLICY_REVIEW: "policy-review.in",
     StepType.CODE_REVIEW: "code-review.in",
+    StepType.FAILURE_ROUTING: "workflow-failures.in",
+    StepType.HUMAN_REVIEW: "human-review.in",
 }
 
 
@@ -77,6 +84,70 @@ class StepWorker:
             )
             await self.db.mark_step_completed(message.workflow_step_id, output_artifact_id)
 
+            if result.terminal_workflow_status is not None:
+                if result.terminal_workflow_status.value == "completed":
+                    await self.db.mark_workflow_completed(message.workflow_run_id)
+                elif result.terminal_workflow_status.value == "failed":
+                    await self.db.mark_workflow_failed(message.workflow_run_id)
+                else:
+                    raise ValueError(
+                        f"Unsupported terminal workflow status: {result.terminal_workflow_status}"
+                    )
+
+                event_type = result.terminal_event_type or "workflow_terminated"
+                await self.db.record_event(
+                    message.workflow_run_id,
+                    message.workflow_step_id,
+                    self.service_name,
+                    event_type,
+                    message.trace_id,
+                    {"output_artifact_id": output_artifact_id},
+                )
+
+                if result.failure_queue_name:
+                    failure_step_id = new_id("ws")
+                    failure_step_id = await self.db.create_workflow_step(
+                        step_id=failure_step_id,
+                        workflow_run_id=message.workflow_run_id,
+                        step_type=StepType.FAILURE_ROUTING,
+                        input_artifact_id=output_artifact_id,
+                    )
+                    await self.queue.publish(
+                        result.failure_queue_name,
+                        WorkflowMessage(
+                            workflow_run_id=message.workflow_run_id,
+                            workflow_step_id=failure_step_id,
+                            step_type=StepType.FAILURE_ROUTING,
+                            input_artifact_id=output_artifact_id,
+                            trace_id=message.trace_id,
+                        ),
+                    )
+                    await self.db.record_event(
+                        message.workflow_run_id,
+                        message.workflow_step_id,
+                        self.service_name,
+                        "workflow_failure_published",
+                        message.trace_id,
+                        {
+                            "failure_queue": result.failure_queue_name,
+                            "failure_step_id": failure_step_id,
+                            "output_artifact_id": output_artifact_id,
+                        },
+                    )
+                return
+
+            if result.workflow_status_override is not None:
+                if result.workflow_status_override == WorkflowStatus.RUNNING:
+                    await self.db.mark_workflow_running(message.workflow_run_id)
+                elif result.workflow_status_override == WorkflowStatus.FAILED:
+                    await self.db.mark_workflow_failed(message.workflow_run_id)
+                elif result.workflow_status_override == WorkflowStatus.COMPLETED:
+                    await self.db.mark_workflow_completed(message.workflow_run_id)
+                else:
+                    raise ValueError(
+                        f"Unsupported workflow status override: {result.workflow_status_override}"
+                    )
+
             if result.next_step_type is None:
                 await self.db.mark_workflow_completed(message.workflow_run_id)
                 await self.db.record_event(
@@ -95,6 +166,7 @@ class StepWorker:
                 workflow_run_id=message.workflow_run_id,
                 step_type=result.next_step_type,
                 input_artifact_id=output_artifact_id,
+                attempt=result.next_step_attempt,
             )
             await self.queue.publish(
                 QUEUE_BY_STEP[result.next_step_type],

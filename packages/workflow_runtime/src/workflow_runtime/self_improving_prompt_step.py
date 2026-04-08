@@ -33,6 +33,7 @@ class SelfImprovingPromptStepConfig:
     context_policy: ContextPolicy | None = None
     context_resolver: ContextResolver | None = None
     context_extra_paths: tuple[str, ...] = ()
+    preserved_input_content_keys: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,11 @@ class SelfImprovingLLMStepHandler:
 
     async def process(self, message: WorkflowMessage, input_artifact: Artifact) -> StepResult:
         base_prompt = (input_artifact.content or {}).get(self._config.prompt_content_key, "")
+        preserved_content = {
+            key: value
+            for key, value in (input_artifact.content or {}).items()
+            if key in self._config.preserved_input_content_keys
+        }
         context_bundle = self._build_context_bundle(input_artifact)
         prompt = self._build_effective_prompt(base_prompt, context_bundle)
         prompt_versions: list[dict[str, Any]] = [
@@ -138,6 +144,7 @@ class SelfImprovingLLMStepHandler:
             output_content={
                 "language": self._config.output_language,
                 "files": [{"path": self._config.output_path, "content": output_text}],
+                **preserved_content,
             },
             output_metadata={
                 "llm_provider": task_response.provider,

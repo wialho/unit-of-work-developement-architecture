@@ -44,7 +44,7 @@ class PromptToCodeHandler(SelfImprovingLLMStepHandler):
             SelfImprovingPromptStepConfig(
                 step_type=StepType.PROMPT_TO_CODE,
                 output_artifact_type=ArtifactType.CODE_ARTIFACT,
-                next_step_type=StepType.CODE_REVIEW,
+                next_step_type=StepType.TEST_RUNNER,
                 task_system_prompt=prompts["task_system"].content,
                 prompt_evaluation_system_prompt=prompts["prompt_evaluation"].content,
                 prompt_refinement_system_prompt=prompts["prompt_refinement"].content,
@@ -63,6 +63,7 @@ class PromptToCodeHandler(SelfImprovingLLMStepHandler):
                 context_policy=context_policy,
                 context_resolver=DeterministicContextResolver(),
                 context_extra_paths=(),
+                preserved_input_content_keys=("prompt", "ticket"),
             ),
             llm_client,
         )

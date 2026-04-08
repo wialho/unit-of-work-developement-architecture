@@ -20,7 +20,7 @@ class TicketToPromptHandler:
         )
         return StepResult(
             output_artifact_type=ArtifactType.PROMPT,
-            output_content={"prompt": prompt},
+            output_content={"prompt": prompt, "ticket": ticket},
             output_metadata={"source_artifact_id": message.input_artifact_id},
             next_step_type=StepType.PROMPT_TO_CODE,
         )

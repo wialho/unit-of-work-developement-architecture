@@ -178,6 +178,28 @@ class Database:
             WorkflowStatus.COMPLETED.value,
         )
 
+    async def mark_workflow_failed(self, workflow_run_id: str) -> None:
+        await self._execute(
+            """
+            UPDATE workflow.workflow_runs
+            SET status = $2, completed_at = now()
+            WHERE id = $1
+            """,
+            workflow_run_id,
+            WorkflowStatus.FAILED.value,
+        )
+
+    async def mark_workflow_running(self, workflow_run_id: str) -> None:
+        await self._execute(
+            """
+            UPDATE workflow.workflow_runs
+            SET status = $2, completed_at = NULL
+            WHERE id = $1
+            """,
+            workflow_run_id,
+            WorkflowStatus.RUNNING.value,
+        )
+
     async def record_event(
         self,
         workflow_run_id: str,

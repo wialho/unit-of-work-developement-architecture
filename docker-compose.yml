@@ -125,6 +125,89 @@ services:
       ollama:
         condition: service_started
 
+  test-runner:
+    build:
+      context: .
+      dockerfile: apps/test-runner/Dockerfile
+    environment:
+      SERVICE_NAME: test-runner
+      DATABASE_URL: postgresql://workflow:workflow@postgres:5432/workflow
+      QUEUE_URL: amqp://guest:guest@rabbitmq:5672/
+      OBJECT_STORAGE_PROVIDER: s3_compatible
+      OBJECT_STORAGE_ENDPOINT: minio:9000
+      OBJECT_STORAGE_BUCKET: workflow-artifacts
+      OBJECT_STORAGE_ACCESS_KEY: workflow
+      OBJECT_STORAGE_SECRET_KEY: workflow-secret
+      OBJECT_STORAGE_SECURE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  requirements-review:
+    build:
+      context: .
+      dockerfile: apps/requirements-review/Dockerfile
+    environment:
+      SERVICE_NAME: requirements-review
+      DATABASE_URL: postgresql://workflow:workflow@postgres:5432/workflow
+      QUEUE_URL: amqp://guest:guest@rabbitmq:5672/
+      OBJECT_STORAGE_PROVIDER: s3_compatible
+      OBJECT_STORAGE_ENDPOINT: minio:9000
+      OBJECT_STORAGE_BUCKET: workflow-artifacts
+      OBJECT_STORAGE_ACCESS_KEY: workflow
+      OBJECT_STORAGE_SECRET_KEY: workflow-secret
+      OBJECT_STORAGE_SECURE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+  policy-review:
+    build:
+      context: .
+      dockerfile: apps/policy-review/Dockerfile
+    environment:
+      SERVICE_NAME: policy-review
+      DATABASE_URL: postgresql://workflow:workflow@postgres:5432/workflow
+      QUEUE_URL: amqp://guest:guest@rabbitmq:5672/
+      OBJECT_STORAGE_PROVIDER: s3_compatible
+      OBJECT_STORAGE_ENDPOINT: minio:9000
+      OBJECT_STORAGE_BUCKET: workflow-artifacts
+      OBJECT_STORAGE_ACCESS_KEY: workflow
+      OBJECT_STORAGE_SECRET_KEY: workflow-secret
+      OBJECT_STORAGE_SECURE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  failure-routing:
+    build:
+      context: .
+      dockerfile: apps/failure-routing/Dockerfile
+    environment:
+      SERVICE_NAME: failure-routing
+      DATABASE_URL: postgresql://workflow:workflow@postgres:5432/workflow
+      QUEUE_URL: amqp://guest:guest@rabbitmq:5672/
+      FAILURE_ROUTING_DEFAULT_ACTION: regenerate
+      OBJECT_STORAGE_PROVIDER: s3_compatible
+      OBJECT_STORAGE_ENDPOINT: minio:9000
+      OBJECT_STORAGE_BUCKET: workflow-artifacts
+      OBJECT_STORAGE_ACCESS_KEY: workflow
+      OBJECT_STORAGE_SECRET_KEY: workflow-secret
+      OBJECT_STORAGE_SECURE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
   code-review:
     build:
       context: .
@@ -144,6 +227,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      ollama:
+        condition: service_started
 
   analysis:
     build:

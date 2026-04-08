@@ -9,22 +9,22 @@ from workflow_runtime import LLMClient, LLMRequest, load_prompt_template
 
 
 FAILURE_QUEUE = "workflow-failures.in"
-PROMPT_VERSION = os.getenv("CODE_REVIEW_PROMPT_VERSION", "v1")
+PROMPT_VERSION = os.getenv("REQUIREMENTS_REVIEW_PROMPT_VERSION", "v1")
 
 
-class CodeReviewHandler:
-    step_type = StepType.CODE_REVIEW
+class RequirementsReviewHandler:
+    step_type = StepType.REQUIREMENTS_REVIEW
 
     def __init__(self, llm_client: LLMClient) -> None:
         self._llm_client = llm_client
-        self._system_prompt = load_prompt_template("code-review/system", PROMPT_VERSION)
+        self._system_prompt = load_prompt_template("requirements-review/system", PROMPT_VERSION)
 
     async def process(self, message: WorkflowMessage, input_artifact: Artifact) -> StepResult:
         content = input_artifact.content or {}
         response = await self._llm_client.complete(
             LLMRequest(
                 system_prompt=self._system_prompt.content,
-                user_prompt=_build_review_prompt(content),
+                user_prompt=_build_requirements_prompt(content),
                 temperature=0.0,
             )
         )
@@ -32,7 +32,7 @@ class CodeReviewHandler:
         findings = _normalize_findings(payload.get("findings"))
         passed = _bool_or_default(payload.get("pass"), not findings)
         return StepResult(
-            output_artifact_type=ArtifactType.REVIEW_RESULT,
+            output_artifact_type=ArtifactType.REQUIREMENTS_REVIEW_RESULT,
             output_content={
                 "language": content.get("language"),
                 "files": content.get("files", []),
@@ -40,9 +40,7 @@ class CodeReviewHandler:
                 "ticket": content.get("ticket"),
                 "regeneration_attempt": content.get("regeneration_attempt", 0),
                 "test_pass": content.get("test_pass"),
-                "requirements_pass": content.get("requirements_pass"),
-                "policy_pass": content.get("policy_pass"),
-                "general_review_pass": passed,
+                "requirements_pass": passed,
                 "review_stage": self.step_type.value,
                 "summary": payload.get("summary", ""),
                 "findings": findings,
@@ -55,21 +53,21 @@ class CodeReviewHandler:
                 "prompt_ref": self._system_prompt.ref,
                 **response.metadata,
             },
-            next_step_type=None,
-            terminal_workflow_status=WorkflowStatus.COMPLETED if passed else WorkflowStatus.FAILED,
-            terminal_event_type="workflow_completed" if passed else "review_failed_general",
+            next_step_type=StepType.POLICY_REVIEW if passed else None,
+            terminal_workflow_status=None if passed else WorkflowStatus.FAILED,
+            terminal_event_type=None if passed else "review_failed_requirements",
             failure_queue_name=None if passed else FAILURE_QUEUE,
         )
 
 
-def _build_review_prompt(content: dict[str, Any]) -> str:
+def _build_requirements_prompt(content: dict[str, Any]) -> str:
+    ticket = content.get("ticket") or {}
+    files = content.get("files") or []
     return (
         "Ticket:\n"
-        f"{json.dumps(content.get('ticket') or {}, indent=2, sort_keys=True)}\n\n"
-        "Prompt:\n"
-        f"{content.get('prompt', '')}\n\n"
+        f"{json.dumps(ticket, indent=2, sort_keys=True)}\n\n"
         "Generated files:\n"
-        f"{json.dumps(content.get('files') or [], indent=2, sort_keys=True)}"
+        f"{json.dumps(files, indent=2, sort_keys=True)}"
     )
 
 

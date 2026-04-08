@@ -20,6 +20,25 @@ if TYPE_CHECKING:
         S3CompatibleBlobStorage,
         create_blob_storage,
     )
+    from workflow_runtime.prompt_evaluation import (
+        PromptEvaluationCriterion,
+        PromptEvaluationRequest,
+        PromptEvaluationResult,
+        PromptEvaluationRubric,
+        PromptEvaluator,
+    )
+    from workflow_runtime.prompt_generation import (
+        PromptGenerationRequest,
+        PromptGenerationResult,
+        PromptGenerator,
+    )
+    from workflow_runtime.prompt_promotion import (
+        PromptOutcomeRecord,
+        PromptPerformanceSummary,
+        PromptPromotionDecision,
+        PromptPromotionPolicy,
+        PromptPromoter,
+    )
     from workflow_runtime.prompt_step import PromptLLMStepHandler, PromptStepConfig
     from workflow_runtime.prompt_registry import PromptTemplate, load_prompt, load_prompt_template
     from workflow_runtime.queue import QueueClient
@@ -42,6 +61,19 @@ _EXPORTS = {
     "LLMRequest": "workflow_runtime.llm",
     "LLMResponse": "workflow_runtime.llm",
     "ObjectStorage": "workflow_runtime.object_storage",
+    "PromptEvaluationCriterion": "workflow_runtime.prompt_evaluation",
+    "PromptEvaluationRequest": "workflow_runtime.prompt_evaluation",
+    "PromptEvaluationResult": "workflow_runtime.prompt_evaluation",
+    "PromptEvaluationRubric": "workflow_runtime.prompt_evaluation",
+    "PromptEvaluator": "workflow_runtime.prompt_evaluation",
+    "PromptGenerationRequest": "workflow_runtime.prompt_generation",
+    "PromptGenerationResult": "workflow_runtime.prompt_generation",
+    "PromptGenerator": "workflow_runtime.prompt_generation",
+    "PromptOutcomeRecord": "workflow_runtime.prompt_promotion",
+    "PromptPerformanceSummary": "workflow_runtime.prompt_promotion",
+    "PromptPromotionDecision": "workflow_runtime.prompt_promotion",
+    "PromptPromotionPolicy": "workflow_runtime.prompt_promotion",
+    "PromptPromoter": "workflow_runtime.prompt_promotion",
     "PromptLLMStepHandler": "workflow_runtime.prompt_step",
     "PromptTemplate": "workflow_runtime.prompt_registry",
     "PromptStepConfig": "workflow_runtime.prompt_step",

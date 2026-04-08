@@ -7,7 +7,11 @@ Kubernetes-oriented workflow pipeline made of specialized microservices. The orc
 - `orchestrator`: accepts new work, creates workflow state, and publishes the first stage message.
 - `ticket-to-prompt`: consumes `ticket-to-prompt.in`, converts source ticket artifacts into prompt artifacts.
 - `prompt-to-code`: consumes `prompt-to-code.in`, converts prompt artifacts into generated code artifacts through the shared LLM client.
-- `code-review`: consumes `code-review.in`, converts generated code artifacts into review result artifacts and completes the workflow.
+- `test-runner`: consumes `test-runner.in`, runs deterministic validation checks before review.
+- `requirements-review`: consumes `requirements-review.in`, evaluates requirement coverage with an LLM prompt.
+- `policy-review`: consumes `policy-review.in`, enforces deterministic repo/output policy checks.
+- `code-review`: consumes `code-review.in`, performs the final general LLM code review.
+- `failure-routing`: consumes `workflow-failures.in`, decides between one allowed regeneration or human review routing.
 - `analysis`: reads durable workflow data outside the execution path.
 - `analysis-frontend`: local frontend shell for analysis service data. Not included in Docker/Kubernetes yet.
 - `orchestrator-dashboard`: local frontend shell for creating workflow runs through the orchestrator. Not included in Docker/Kubernetes yet.
@@ -23,6 +27,9 @@ The runtime exposes provider-neutral shared code for prompt-based LLM steps, LLM
 
 - `workflow_runtime.prompt_step.PromptLLMStepHandler`
 - `workflow_runtime.self_improving_prompt_step.SelfImprovingLLMStepHandler`
+- `workflow_runtime.prompt_generation.PromptGenerator`
+- `workflow_runtime.prompt_evaluation.PromptEvaluator`
+- `workflow_runtime.prompt_promotion.PromptPromoter`
 - `workflow_runtime.llm.LLMClient`
 - `workflow_runtime.object_storage.BlobStorage`
 - `workflow_runtime.object_storage.create_blob_storage`
@@ -46,6 +53,10 @@ prompts/
     prompt-refinement-v1.md
     output-check-v1.md
     output-repair-v1.md
+  requirements-review/
+    system-v1.md
+  code-review/
+    system-v1.md
   shared/
     json-only-v1.md
 ```
@@ -55,6 +66,11 @@ Set `PROMPT_REGISTRY_ROOT` to override the default registry location. If omitted
 runtime searches upward from the current working directory for `prompts/`.
 For `prompt-to-code`, set `PROMPT_TO_CODE_PROMPT_VERSION=v2` to switch to files such as
 `prompts/prompt-to-code/task-system-v2.md`.
+
+Shared prompt-improvement packages are available in the runtime:
+- `prompt_generation`: turn structured prompt requirements into a reusable prompt draft
+- `prompt_evaluation`: score prompt candidates against an explicit rubric
+- `prompt_promotion`: aggregate downstream outcomes and decide whether to promote, keep, or reject a candidate prompt version
 
 Deterministic autocontext is available through `workflow_runtime.context`. The current
 integration is `prompt-to-code`, which resolves a bounded `ContextBundle` per input
@@ -71,6 +87,18 @@ PROMPT_TO_CODE_CONTEXT_PATH_GLOBS=packages/workflow_contracts/src/workflow_contr
 
 The runtime stores both the resolved `ContextBundle` and the policy metadata in the
 artifact metadata so later stages can audit what context was attached.
+
+Failure routing is configurable with:
+
+```text
+FAILURE_ROUTING_DEFAULT_ACTION=regenerate
+```
+
+If a review stage fails, the workflow is marked failed and a failure-routing step is published to
+`workflow-failures.in`. `failure-routing` will:
+- send the work back to `prompt-to-code` once with a regeneration addendum describing the failed stage and findings
+- route directly to `human-review.in` when configured for immediate human review
+- route to `human-review.in` after any failed regeneration attempt
 
 Each service can override those defaults with service-prefixed variables. For `prompt-to-code`, use:
 
@@ -116,7 +144,12 @@ V1 uses one RabbitMQ queue per stage:
 
 - `ticket-to-prompt.in`
 - `prompt-to-code.in`
+- `test-runner.in`
+- `requirements-review.in`
+- `policy-review.in`
 - `code-review.in`
+- `workflow-failures.in`
+- `human-review.in`
 
 Messages carry references, not payload blobs:
 
@@ -141,6 +174,9 @@ Postgres uses one database with a shared `workflow` schema:
 - `workflow.service_events`
 
 Artifacts support either inline JSON `content` for small data or `content_ref` for future object storage.
+The happy-path review order is `test-runner -> requirements-review -> policy-review -> code-review`.
+If any review stage fails, the workflow is marked failed, a terminal event is recorded, and the
+failure artifact is published to `workflow-failures.in` for downstream remediation or triage.
 
 ## Local Development
 
